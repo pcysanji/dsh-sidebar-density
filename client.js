@@ -2,6 +2,8 @@ window.__ModuleLoader__.load({
 	id: 'dsh-sidebar-density',
 	factory(require) {
 		'use strict';
+		window.__dshDensityErr = [];
+		window.addEventListener('error', (e) => { window.__dshDensityErr.push(String((e && e.message) || e)); });
 
 		const NS = 'dsh-sidebar-density';
 		const STYLE_ID = 'dsh-sidebar-density-style';
@@ -27,6 +29,7 @@ window.__ModuleLoader__.load({
 			{ key: 'newSession', min: 24, max: 44, step: 1, fallback: 30, unit: 'px' },
 			{ key: 'hideNewSession', kind: 'toggle', fallback: false },
 			{ key: 'panelColumns', kind: 'toggle', fallback: false },
+			{ key: 'colGap', min: 0, max: 24, step: 1, fallback: 8, unit: 'px' },
 			{ key: 'captionHeight', min: 20, max: 48, step: 1, fallback: 28, unit: 'px', patch: 'caption' },
 			{ key: 'captionFont', min: 9, max: 16, step: 1, fallback: 12, unit: 'px', patch: 'font' },
 			{ key: 'widthUnlock', kind: 'toggle', fallback: true, patch: 'width' },
@@ -45,6 +48,7 @@ window.__ModuleLoader__.load({
 			captionFont: 12,
 			hideNewSession: false,
 			panelColumns: false,
+			colGap: 8,
 			widthUnlock: true,
 			fontFamily: '',
 		});
@@ -104,6 +108,10 @@ window.__ModuleLoader__.load({
 		}
 
 		let current = readSettings();
+		let navObserver = null;
+		let navWatcher = null;
+		let fitFrame = 0;
+
 
 		function emit() {
 			refreshReadouts();
@@ -482,20 +490,34 @@ window.__ModuleLoader__.load({
 
 				/* 插件按钮双栏：插件名短，两列能省一半竖向空间；会话标题长，保持单列。
 				 *
-				 * 必须用 minmax(0,1fr)：写 1fr 等于 minmax(auto,1fr)，每列的
-				 * min-content 会顶住不给缩，左栏窄下来后两列宽度还不相等、
-				 * 右列直接被侧栏边缘切掉。行元素自己也要 min-width:0，
-				 * 否则它作为 grid item 仍按内容撑开，把列再顶回去。
+				 * 列宽不用 1fr（= minmax(auto,1fr)）：那样两列各占一半，短名字旁边
+				 * 必然空出一大条，而且窄下来时 min-content 还会顶住不给缩、把右列
+				 * 顶出侧栏。改成让 fitColumns() 量出两列各自的自然宽度再写进来。
+				 * 行元素自己也要 min-width:0，否则它作为 grid item 仍按内容撑开。
 				 */
 				settings.panelColumns === true
 					? `${SIDEBAR} [data-sidebar-scrollport] nav[aria-label]{`
-						+ `display:grid!important;grid-template-columns:repeat(2,minmax(0,1fr))!important;`
-						+ `gap:${settings.gap}px!important;}`
+						/* 两列各按「自己那一列里最长的一项」取宽：短名字旁边不再空出
+						 * 一条，长名字也不用省略号。两列加起来超过侧栏时 fitColumns()
+						 * 会按比例缩，只让最长的那个走省略号。
+						 */
+						+ `display:grid!important;`
+						+ `grid-template-columns:var(--dsh-col-a,1fr) var(--dsh-col-b,1fr)!important;`
+						+ `column-gap:${settings.colGap}px!important;row-gap:${settings.gap}px!important;`
+						+ `justify-content:start!important;}`
 						+ `${SIDEBAR} [data-sidebar-scrollport] nav[aria-label]>*{`
 						+ `min-width:0!important;max-width:100%!important;}`
 						+ `${SIDEBAR} [data-sidebar-scrollport] nav[aria-label] button{`
 						+ `height:${settings.panelRow}px!important;min-height:${settings.panelRow}px!important;`
-						+ `overflow:hidden;white-space:nowrap;text-overflow:ellipsis;justify-content:flex-start;}`
+						+ `overflow:hidden;white-space:nowrap;text-overflow:ellipsis;justify-content:flex-start;`
+						+ `}`
+						/* 两列时右边那 38px 的留白（给 hover 才出现的「取消固定」图标）
+						 * 会变成两列之间一条很宽的空档，缩到 26px：图标还是放得下，
+						 * 空档一下子窄一半。 */
+						+ `${SIDEBAR} [data-sidebar-scrollport] nav[aria-label] .wtg9ga_panelRow{`
+						+ `padding-right:26px!important;}`
+						+ `${SIDEBAR} [data-sidebar-scrollport] nav[aria-label] .wtg9ga_panelUnpin{`
+						+ `width:24px!important;}`
 					: '',
 
 				/* 顶栏字号：菜单栏按钮（应用 / 编辑）一起跟随。 */
@@ -618,6 +640,107 @@ window.__ModuleLoader__.load({
 			applyFontDelta(current.fontDelta);
 			applyLogo(current.logoSize, current.logoImage ?? '');
 			positionCaption();
+			watchNav();
+			scheduleFitColumns();
+		}
+
+		/* ------------------------------------------------------------------ *
+		 * 双栏列宽：量出来，不猜
+		 *
+		 * 两列各取「自己那一列里最长的那一项」的自然宽度（左内边距 + 图标 +
+		 * 间距 + 文字 + 右内边距），写进 --dsh-col-a / --dsh-col-b。短名字
+		 * 旁边不再空出一大条，长名字也不用省略号 —— 只有两列加起来比侧栏
+		 * 还宽的时候，才按比例一起缩，让最长的那个走省略号。
+		 *
+		 * 文字宽度用 title.scrollWidth 取：它即使被 ellipsis 裁过，scrollWidth
+		 * 仍是完整文字宽度，所以量一次就够，不会和「量完再裁」互相咬。
+		 * ------------------------------------------------------------------ */
+
+		function measureEntry(item) {
+			const row = item.querySelector('button');
+			const title = item.querySelector('[class*="panelTitle"]');
+			if (row === null || title === null) return 0;
+			const cs = getComputedStyle(row);
+			const padL = parseFloat(cs.paddingLeft) || 0;
+			const padR = parseFloat(cs.paddingRight) || 0;
+			const inner = parseFloat(cs.columnGap) || 0;
+			const glyph = item.querySelector('[class*="panelGlyph"]');
+			const glyphW = glyph === null ? 0 : glyph.getBoundingClientRect().width;
+			/* 条目本身还有一圈边框/内衬（offsetWidth - clientWidth），不算进去
+			 * 就会差那几个像素，文字最后又被省略号咬掉一小截。 */
+			const chrome = item.offsetWidth - item.clientWidth;
+			return Math.ceil(padL + glyphW + inner + title.scrollWidth + padR + chrome) + 1;
+		}
+
+		function fitColumns() {
+			fitFrame = 0;
+			const nav = document.querySelector('[data-sidebar-scrollport] nav[aria-label]');
+			if (nav === null) return;
+			nav.dataset.dshFit = 'enter';
+			if (current.panelColumns !== true) {
+				nav.dataset.dshFit = 'off';
+				nav.style.removeProperty('--dsh-col-a');
+				nav.style.removeProperty('--dsh-col-b');
+				return;
+			}
+			const items = Array.from(nav.children);
+			if (items.length === 0) return;
+			let left = 0;
+			let right = 0;
+			items.forEach((item, index) => {
+				const width = measureEntry(item);
+				if (width === 0) return;
+				if (index % 2 === 0) left = Math.max(left, width);
+				else right = Math.max(right, width);
+			});
+			if (left === 0 || right === 0) return;
+			const available = nav.clientWidth - current.colGap;
+			if (left + right > available && available > 0) {
+				const ratio = available / (left + right);
+				left = Math.floor(left * ratio);
+				right = Math.floor(right * ratio);
+			}
+			nav.dataset.dshFit = `${left}x${right} of ${available}`;
+			nav.style.setProperty('--dsh-col-a', `${left}px`);
+			nav.style.setProperty('--dsh-col-b', `${right}px`);
+		}
+
+		function scheduleFitColumns() {
+			if (fitFrame !== 0) return;
+			fitFrame = requestAnimationFrame(fitColumns);
+		}
+
+		/* 插件列表晚到（宿主异步下发）和侧栏拖宽都要重新量一遍。 */
+		function watchNav() {
+			const nav = document.querySelector('[data-sidebar-scrollport] nav[aria-label]');
+			if (nav === navWatcher) return;
+			if (navObserver !== null) navObserver.disconnect();
+			navObserver = null;
+			navWatcher = nav;
+			if (nav === null) return;
+			navObserver = new MutationObserver(scheduleFitColumns);
+			navObserver.observe(nav, { childList: true });
+		}
+
+		/* applyStyles() 之外，侧栏宽度变化也要重算：ResizeObserver 只挂一次。 */
+		let resizeHooked = false;
+
+		function hookResize() {
+			if (resizeHooked) return;
+			resizeHooked = true;
+			const observer = new ResizeObserver(scheduleFitColumns);
+			const attach = () => {
+				const nav = document.querySelector('[data-sidebar-scrollport] nav[aria-label]');
+				if (nav === null) {
+					setTimeout(attach, 500);
+					return;
+				}
+				observer.observe(nav);
+				scheduleFitColumns();
+			};
+			attach();
+			window.addEventListener('resize', scheduleFitColumns);
+			if (document.fonts !== undefined) document.fonts.ready.then(scheduleFitColumns).catch(() => {});
 		}
 
 		/* ------------------------------------------------------------------ *
@@ -1158,6 +1281,7 @@ window.__ModuleLoader__.load({
 				captionFont: '顶栏字号',
 				hideNewSession: '隐藏新会话按钮',
 				panelColumns: '插件按钮双栏',
+				colGap: '双栏列间距',
 				widthUnlock: '解除左栏宽度限制',
 				newSessionHint: '提示：点左上角 logo 也能新建会话（DSH 默认行为），隐藏按钮不影响它。',
 				fontFamily: '字体',
@@ -1196,6 +1320,7 @@ window.__ModuleLoader__.load({
 				captionFont: 'Caption type size',
 				hideNewSession: 'Hide New Session',
 				panelColumns: 'Two-column panel buttons',
+				colGap: 'Two-column gap',
 				widthUnlock: 'Unlock sidebar width',
 				newSessionHint: 'Tip: clicking the logo also starts a new session (DSH default), so hiding the button is safe.',
 				fontFamily: 'Font',
@@ -1242,7 +1367,13 @@ window.__ModuleLoader__.load({
 				ctx.effect(() => ctx.locale.subscribe(syncLocale), 'dsh-sidebar-density: locale');
 
 				ctx.effect(() => {
-					applyStyles();
+					try {
+						applyStyles();
+						hookResize();
+					} catch (err) {
+						window.__dshDensityErr = window.__dshDensityErr || [];
+						window.__dshDensityErr.push('styles: ' + String((err && err.stack) || err));
+					}
 					return () => document.getElementById(STYLE_ID)?.remove();
 				}, 'dsh-sidebar-density: live styles');
 
