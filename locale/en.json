@@ -1,0 +1,22 @@
+{
+  "name": "Sidebar density",
+  "description": "Row height, spacing, type size, font and logo size, all on sliders with live preview.",
+  "sectionLabel": "Sidebar density",
+  "title": "Sidebar density",
+  "hint": "Affects the left sidebar only. Sliders preview live and the value is remembered.",
+  "rowHeight": "Row height",
+  "rowGap": "Item gap",
+  "inlinePadding": "Side padding",
+  "rowPadding": "Row padding",
+  "fontSize": "Type size",
+  "fontFamily": "Font",
+  "logoSize": "Logo size",
+  "newSession": "New Session height",
+  "reset": "Restore defaults",
+  "widthNote": "The asar patch widened the sidebar range to 176–320 px (default 220); drag its edge to resize.",
+  "titleBarNote": "The asar patch cut the caption row from 40 px to 20 px.",
+  "fontDefault": "Follow system",
+  "fontUi": "System UI",
+  "fontMono": "Monospace",
+  "fontSerif": "Serif"
+}

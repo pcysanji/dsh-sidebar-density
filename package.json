@@ -1,0 +1,60 @@
+{
+  "name": "dsh-sidebar-density",
+  "version": "1.0.0",
+  "description": "Sidebar density controls for DeepSeek Harness: row height, spacing, font size, logo size, new-session height, double-column plugins, plus patch-gated caption height/font and unlocked sidebar width.",
+  "type": "module",
+  "main": "index.js",
+  "license": "MIT",
+  "author": {
+    "name": "Changye Pan"
+  },
+  "keywords": [
+    "dsh-plugin",
+    "deepseek-harness",
+    "dsh",
+    "sidebar",
+    "density",
+    "ui"
+  ],
+  "homepage": "https://github.com/pcysanji/dsh-sidebar-density#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/pcysanji/dsh-sidebar-density.git"
+  },
+  "bugs": {
+    "url": "https://github.com/pcysanji/dsh-sidebar-density/issues"
+  },
+  "exports": {
+    ".": "./index.js",
+    "./client": "./client.js",
+    "./icon": "./docs/icon-360.png",
+    "./locale/*.json": "./locale/*.json",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "index.js",
+    "client.js",
+    "cordis.patch.yml",
+    "locale/zh.json",
+    "locale/en.json",
+    "README.md",
+    "LICENSE",
+    "screenshots.json",
+    "docs/*.png"
+  ],
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web",
+      "immediately": true,
+      "inject": [
+        "@deepseek-ai/dsh-client-ui-settings"
+      ]
+    }
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}

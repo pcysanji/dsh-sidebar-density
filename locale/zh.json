@@ -1,0 +1,22 @@
+{
+  "name": "左侧栏密度",
+  "description": "行高、间距、字号、字体与 Logo 尺寸都能用滑块调，改动即时生效。",
+  "sectionLabel": "左侧栏密度",
+  "title": "左侧栏密度",
+  "hint": "只影响左侧栏，不改变应用逻辑。拖动滑块即时预览，设置会记住。",
+  "rowHeight": "行高",
+  "rowGap": "条目间距",
+  "inlinePadding": "左右内边距",
+  "rowPadding": "行内边距",
+  "fontSize": "字号",
+  "fontFamily": "字体",
+  "logoSize": "Logo 尺寸",
+  "newSession": "新会话按钮高度",
+  "reset": "恢复默认",
+  "widthNote": "左栏宽度范围已由 asar 补丁改为 176–320（默认 220），拖动栏边即可调整。",
+  "titleBarNote": "「应用 / 编辑」标题栏高度已由 asar 补丁从 40px 改为 20px。",
+  "fontDefault": "跟随系统",
+  "fontUi": "系统 UI",
+  "fontMono": "等宽",
+  "fontSerif": "衬线"
+}
