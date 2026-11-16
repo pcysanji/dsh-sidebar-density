@@ -480,10 +480,19 @@ window.__ModuleLoader__.load({
 				 * 这 4px 与网格首行叠加，必须一起归零才吃得住滑块。 */
 				`${SIDEBAR} div:has(> [data-sidebar-scrollport]){margin-top:0!important;}`,
 
-				/* 插件按钮双栏：插件名短，两列能省一半竖向空间；会话标题长，保持单列。 */
+				/* 插件按钮双栏：插件名短，两列能省一半竖向空间；会话标题长，保持单列。
+				 *
+				 * 必须用 minmax(0,1fr)：写 1fr 等于 minmax(auto,1fr)，每列的
+				 * min-content 会顶住不给缩，左栏窄下来后两列宽度还不相等、
+				 * 右列直接被侧栏边缘切掉。行元素自己也要 min-width:0，
+				 * 否则它作为 grid item 仍按内容撑开，把列再顶回去。
+				 */
 				settings.panelColumns === true
 					? `${SIDEBAR} [data-sidebar-scrollport] nav[aria-label]{`
-						+ `display:grid!important;grid-template-columns:1fr 1fr!important;gap:${settings.gap}px!important;}`
+						+ `display:grid!important;grid-template-columns:repeat(2,minmax(0,1fr))!important;`
+						+ `gap:${settings.gap}px!important;}`
+						+ `${SIDEBAR} [data-sidebar-scrollport] nav[aria-label]>*{`
+						+ `min-width:0!important;max-width:100%!important;}`
 						+ `${SIDEBAR} [data-sidebar-scrollport] nav[aria-label] button{`
 						+ `height:${settings.panelRow}px!important;min-height:${settings.panelRow}px!important;`
 						+ `overflow:hidden;white-space:nowrap;text-overflow:ellipsis;justify-content:flex-start;}`

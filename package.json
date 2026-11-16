@@ -1,6 +1,6 @@
 {
   "name": "dsh-sidebar-density",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Sidebar density controls for DeepSeek Harness: row height, spacing, font size, logo size, new-session height, double-column plugins, plus patch-gated caption height/font and unlocked sidebar width.",
   "type": "module",
   "main": "index.js",
